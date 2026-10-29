@@ -1,0 +1,52 @@
+name: Fork validation
+
+on:
+  push:
+    branches:
+      - xenios
+      - preview
+      - "work/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-checks:
+    name: Source and configuration checks
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate CMake presets JSON
+        run: python -m json.tool CMakePresets.json > /dev/null
+
+      - name: Validate Python build entry point
+        run: python -m py_compile xb
+
+      - name: Validate Apple build script syntax
+        run: bash -n tools/build_apple_release.sh
+
+      - name: Check required project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f LICENSE
+          test -f README.md
+          test -f .gitmodules
+          test -f xenia_ios.entitlements
+          test -f tools/build_apple_release.sh
+          echo "Required source and build files are present."
