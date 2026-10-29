@@ -32,7 +32,7 @@ name: Apple Publish
   # Publishing is manual-only. Use the fork build workflow for personal IPA artifacts.
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: "apple-publish-${{ github.ref }}"
