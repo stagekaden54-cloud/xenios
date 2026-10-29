@@ -29,13 +29,7 @@ name: Apple Publish
         description: "Build number override (optional)"
         required: false
         type: string
-  push:
-    branches:
-      - "preview"
-      - "xenios"
-    tags:
-      - "v*"
-      - "release-*"
+  # Publishing is manual-only. Use the fork build workflow for personal IPA artifacts.
 
 permissions:
   contents: write
@@ -46,6 +40,9 @@ concurrency:
 
 jobs:
   resolve-metadata:
+    # This workflow publishes official releases and updates the official website.
+    # Keep it restricted to the canonical repository; personal forks use build-fork-ipa.yml.
+    if: github.repository == 'xenios-jp/XeniOS'
     name: Resolve publish metadata
     runs-on: ubuntu-latest
     outputs:
