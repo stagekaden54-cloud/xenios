@@ -1,0 +1,87 @@
+name: Build fork iOS IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Build configuration
+        required: true
+        type: choice
+        default: Release
+        options:
+          - Release
+          - Debug
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ios:
+    name: Build iOS IPA (unsigned / ad-hoc)
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+
+      - name: Select Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_26.3.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.3.app
+          fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Initialize project submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          git submodule update --init --depth=1 --recursive
+          if [ -d third_party/DirectXShaderCompiler ]; then
+            git -C third_party/DirectXShaderCompiler submodule update --init --depth=1 external/SPIRV-Headers external/SPIRV-Tools
+          fi
+
+      - name: Fetch emulator patch and controller data
+        shell: bash
+        run: ./xb fetchdata
+
+      - name: Build iOS IPA
+        shell: bash
+        env:
+          BUILD_CONFIGURATION: ${{ inputs.configuration }}
+        run: |
+          set -euo pipefail
+          case "${BUILD_CONFIGURATION}" in
+            Release|Debug) ;;
+            *) echo "::error::Unsupported build configuration"; exit 1 ;;
+          esac
+
+          ./tools/build_apple_release.sh \
+            --config "${BUILD_CONFIGURATION}" \
+            --channel preview \
+            --stage alpha \
+            --random-ios-bundle-id \
+            --skip-macos-arm64 \
+            --skip-macos-x86_64 \
+            --skip-macos-universal \
+            --out scratch/artifacts
+
+          test -s scratch/artifacts/xenios_ios_iphone_ipad.ipa
+          file scratch/artifacts/xenios_ios_iphone_ipad.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xenios-fork-ios-ipa-${{ inputs.configuration }}
+          path: scratch/artifacts/xenios_ios_iphone_ipad.ipa
+          if-no-files-found: error
+          retention-days: 7
